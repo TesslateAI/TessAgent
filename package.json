@@ -1,0 +1,136 @@
+{
+  "name": "my-ai-chat",
+  "displayName": "My AI Chat",
+  "description": "A custom AI chat assistant for VS Code.",
+  "version": "0.0.1",
+  "publisher": "your-publisher-name",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "my-ai-chat-sidebar-container",
+          "title": "My AI Chat",
+          "icon": "media/chat-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "my-ai-chat-sidebar-container": [
+        {
+          "type": "webview",
+          "id": "myAiChat.chatView",
+          "name": "Chat",
+          "icon": "media/chat-icon.svg",
+          "contextualTitle": "My AI Chat"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "myAiChat.sendMessage",
+        "title": "Send Message to AI Chat"
+      },
+      {
+        "command": "myAiChat.fillInMiddle",
+        "title": "AI: Fill In The Middle",
+        "category": "My AI Chat"
+      },
+      {
+        "command": "myAiChat.openSettingsPage",
+        "title": "My AI Chat: Configure Models",
+        "category": "My AI Chat"
+      }
+    ],
+    "icons": {
+      "media/chat-icon.svg": "An icon for the chat."
+    },
+    "configuration": {
+      "title": "My AI Chat",
+      "properties": {
+        "myAiChat.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Your OpenAI API Key. This will be used if no model-specific key is found.",
+          "scope": "application"
+        },
+        "myAiChat.apiUrl": {
+          "type": "string",
+          "default": "https://api.openai.com/v1",
+          "description": "The base URL for the OpenAI API. Change this for proxies or compatible services. This will be used if no model-specific URL is found.",
+          "scope": "application"
+        },
+        "myAiChat.defaultChatModel": {
+          "type": "string",
+          "default": "gpt-3.5-turbo",
+          "description": "Default model ID to use for chat.",
+          "scope": "application"
+        },
+        "myAiChat.defaultCompletionModel": {
+            "type": "string",
+            "default": "gpt-3.5-turbo-instruct",
+            "description": "Default model ID to use for inline completions (ensure it's a completion model like gpt-3.5-turbo-instruct or use a chat model with appropriate prompting).",
+            "scope": "application"
+        },
+        "myAiChat.defaultFimModel": {
+            "type": "string",
+            "default": "gpt-3.5-turbo",
+            "description": "Default model ID to use for Fill-In-Middle (FIM). Chat models can be used with FIM prompting.",
+            "scope": "application"
+        },
+        "myAiChat.modelConfigurations": {
+          "type": "array",
+          "default": [
+            { "name": "GPT-3.5 Turbo (Chat)", "id": "gpt-3.5-turbo", "apiUrl": "https://api.openai.com/v1", "apiKey": "", "type": "chat" },
+            { "name": "GPT-3.5 Turbo Instruct (Completion)", "id": "gpt-3.5-turbo-instruct", "apiUrl": "https://api.openai.com/v1", "apiKey": "", "type": "completion" },
+            { "name": "GPT-4 Turbo (Chat)", "id": "gpt-4-turbo-preview", "apiUrl": "https://api.openai.com/v1", "apiKey": "", "type": "chat" },
+            { "name": "GPT-4o (Chat)", "id": "gpt-4o", "apiUrl": "https://api.openai.com/v1", "apiKey": "", "type": "chat" }
+          ],
+          "description": "List of available AI model configurations. 'apiKey' and 'apiUrl' override global settings if provided. 'type' can be 'chat' or 'completion'.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "description": "Display name for the model." },
+              "id": { "type": "string", "description": "Actual model ID (e.g., gpt-3.5-turbo)." },
+              "apiUrl": { "type": "string", "description": "Optional: API URL for this specific model." },
+              "apiKey": { "type": "string", "description": "Optional: API Key for this specific model (more secure to leave blank and use global key)." },
+              "type": { "type": "string", "enum": ["chat", "completion"], "description": "Model type." }
+            },
+            "required": ["name", "id", "type"]
+          },
+          "scope": "application"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@types/node": "18.x",
+    "@types/marked": "^5.0.0",
+    "@types/uuid": "^9.0.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.3.3",
+    "@typescript-eslint/parser": "^7.10.0",
+    "@typescript-eslint/eslint-plugin": "^7.10.0",
+    "marked": "^5.0.0"
+  },
+  "dependencies": {
+    "openai": "^4.20.0",
+    "uuid": "^9.0.0"
+  }
+}
