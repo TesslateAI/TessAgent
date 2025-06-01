@@ -47,7 +47,7 @@ export interface AIServiceResponse {
 export interface EditorContext {
     activeEditor?: {
         filePath: string;
-        content: string;
+        content: string; // Full content of the file
         languageId: string;
         selection: {
             text: string;
@@ -59,6 +59,10 @@ export interface EditorContext {
         cursorPosition: {
             line: number;
             character: number;
+        };
+        surroundingCode?: { // Code around the cursor, if no selection
+            beforeCursor: string;
+            afterCursor: string;
         };
     };
 }

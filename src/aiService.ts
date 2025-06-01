@@ -10,13 +10,13 @@ export class AIService {
         const baseURL = SettingsManager.getApiUrl(modelIdUsed);
 
         if (!apiKey) {
-            vscode.window.showErrorMessage('My AI Chat: API Key not configured. Please set it in the settings.');
+            vscode.window.showErrorMessage('Tessa Agent: API Key not configured. Please set it in the settings.');
             return undefined;
         }
         try {
             return new OpenAI({ apiKey, baseURL });
         } catch (error: any) {
-            vscode.window.showErrorMessage(`My AI Chat: Error initializing OpenAI client: ${error.message}`);
+            vscode.window.showErrorMessage(`Tessa Agent: Error initializing OpenAI client: ${error.message}`);
             console.error("OpenAI client init error:", error);
             return undefined;
         }
@@ -31,8 +31,7 @@ export class AIService {
         }
 
         const textBeforeCursor = document.getText(new vscode.Range(new vscode.Position(0, 0), position));
-        // Limit context to prevent very large requests for simple completions
-        const contextWindowSize = 2000; // characters
+        const contextWindowSize = 2000; 
         const promptText = textBeforeCursor.slice(-contextWindowSize);
 
         try {
@@ -41,11 +40,11 @@ export class AIService {
                     model: modelId,
                     prompt: promptText,
                     max_tokens: 60,
-                    stop: ["\n", "```"], // Stop at newline or new code block for inline
+                    stop: ["\n", "```"],
                     temperature: 0.3,
                 });
                 return response.choices[0]?.text?.trim();
-            } else { // Use chat model for completion
+            } else { 
                 const response = await openai.chat.completions.create({
                     model: modelId,
                     messages: [
@@ -60,8 +59,6 @@ export class AIService {
             }
         } catch (error: any) {
             console.error("AI Completion Error:", error);
-            // Don't show error message for every completion failure, can be noisy. Log it.
-            // vscode.window.showErrorMessage(`My AI Chat Completion Error: ${error.message}`);
             return undefined;
         }
     }
@@ -71,8 +68,6 @@ export class AIService {
         const openai = this.getOpenAIClient(modelId);
         if (!openai) return undefined;
 
-        // Constructing FIM prompt for chat models (OpenAI doesn't have a dedicated FIM endpoint for all models)
-        // Using a common FIM marker style. Adjust if your model needs specific markers.
         const fimPrompt = `<｜fim_prefix｜>${prefix}<｜fim_suffix｜>${suffix}<｜fim_middle｜>`;
 
         try {
@@ -82,19 +77,23 @@ export class AIService {
                     { role: "system", content: "You are an AI that completes code. Given a prefix and a suffix, fill in the middle part. Output only the code to be inserted." },
                     { role: "user", content: fimPrompt }
                 ],
-                max_tokens: 150,
+                max_tokens: 250, // Increased for potentially larger FIM results
                 temperature: 0.5,
-                stop: ["<｜file_separator｜>", "<｜fim_prefix｜>", "<｜fim_suffix｜>"] // Stop tokens for FIM
+                stop: ["<｜file_separator｜>", "<｜fim_prefix｜>", "<｜fim_suffix｜>"]
             });
             return response.choices[0]?.message?.content?.trim();
         } catch (error: any) {
             console.error("AI FIM Error:", error);
-            vscode.window.showErrorMessage(`My AI Chat FIM Error: ${error.message}`);
+            vscode.window.showErrorMessage(`Tessa Agent FIM Error: ${error.message}`);
             return undefined;
         }
     }
 
-    public async processChatMessage(message: string, editorContext?: EditorContext): Promise<AIServiceResponse> {
+    public async processChatMessage(
+        userPrompt: string, 
+        editorContext?: EditorContext,
+        originalUserCommand?: string // e.g. "/update_file" if userPrompt was modified for /explain
+    ): Promise<AIServiceResponse> {
         const modelId = SettingsManager.getDefaultChatModelId();
         const openai = this.getOpenAIClient(modelId);
         if (!openai) {
@@ -102,40 +101,56 @@ export class AIService {
         }
 
         const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-            { role: "system", content: "You are a helpful AI assistant integrated into a VS Code extension. Be concise and helpful. Format code snippets using markdown." }
+            { role: "system", content: "You are Tessa Agent, a helpful AI assistant integrated into VS Code. Be concise and helpful. Format code snippets using markdown. Use GFM for tables if needed." }
         ];
 
+        let effectiveUserCommand = originalUserCommand || userPrompt;
+
         if (editorContext?.activeEditor) {
-            let contextText = `The user is currently in the file: \`${editorContext.activeEditor.filePath}\` (language: ${editorContext.activeEditor.languageId}).`;
+            let contextText = `The user is currently in the file: \`${vscode.workspace.asRelativePath(editorContext.activeEditor.filePath)}\` (language: ${editorContext.activeEditor.languageId}).`;
+            contextText += `\nCursor is at line ${editorContext.activeEditor.cursorPosition.line + 1}, character ${editorContext.activeEditor.cursorPosition.character + 1}.`;
+
             if (editorContext.activeEditor.selection.text) {
                 contextText += `\nThey have selected the following text:\n\`\`\`${editorContext.activeEditor.languageId}\n${editorContext.activeEditor.selection.text}\n\`\`\``;
+            } else if (editorContext.activeEditor.surroundingCode) {
+                let surroundingCodeMessage = "";
+                if (editorContext.activeEditor.surroundingCode.beforeCursor.trim()) {
+                    surroundingCodeMessage += `\nCode before cursor:\n\`\`\`${editorContext.activeEditor.languageId}\n${editorContext.activeEditor.surroundingCode.beforeCursor}\n\`\`\``;
+                }
+                if (editorContext.activeEditor.surroundingCode.afterCursor.trim()) {
+                     surroundingCodeMessage += `\nCode after cursor:\n\`\`\`${editorContext.activeEditor.languageId}\n${editorContext.activeEditor.surroundingCode.afterCursor}\n\`\`\``;
+                }
+                if (surroundingCodeMessage) {
+                    contextText += "\nThe user has the following code around their cursor (no specific text selected):" + surroundingCodeMessage;
+                }
             }
             messages.push({ role: "system", content: contextText });
         }
-        messages.push({ role: "user", content: message });
+        messages.push({ role: "user", content: userPrompt });
 
         try {
-            // Simulate a command for file update
-            if (message.toLowerCase().startsWith("/update_file")) {
+            if (effectiveUserCommand.toLowerCase().startsWith("/update_file")) {
                 if (editorContext?.activeEditor) {
                     const filePath = editorContext.activeEditor.filePath;
                     const originalContent = editorContext.activeEditor.content;
-                    // Ask AI to generate the new content based on the original and the prompt
-                    const updatePrompt = `Given the following file content for "${filePath}" and the user's request, provide the *entire new file content*. User request: "${message.substring("/update_file".length).trim()}". Original content:\n\`\`\`${editorContext.activeEditor.languageId}\n${originalContent}\n\`\`\``;
+                    const instruction = effectiveUserCommand.substring("/update_file".length).trim();
+                    const updatePromptForAI = `The user wants to update the file "${vscode.workspace.asRelativePath(filePath)}". Their instruction is: "${instruction}".\nBased on this instruction and the original file content provided below, generate the *entire new file content*. Output only the new file content, preferably without any surrounding markdown code blocks unless the file itself is markdown.\nOriginal content of "${vscode.workspace.asRelativePath(filePath)}":\n\`\`\`${editorContext.activeEditor.languageId}\n${originalContent}\n\`\`\``;
                     
-                    messages.pop(); // Remove the original /update_file message
-                    messages.push({role: "user", content: updatePrompt});
+                    // Replace the last user message (which was the /update_file command or a modified prompt)
+                    // with this more specific prompt for the AI.
+                    messages.pop(); 
+                    messages.push({role: "user", content: updatePromptForAI});
 
                     const fileUpdateResponse = await openai.chat.completions.create({
                         model: modelId,
                         messages: messages,
-                        max_tokens: 2000, // Allow more tokens for full file content
-                        temperature: 0.6,
+                        max_tokens: 4000, // Allow more tokens for full file content
+                        temperature: 0.5, // Slightly lower for more deterministic file updates
                     });
-                    const newContent = fileUpdateResponse.choices[0]?.message?.content;
+                    let newContent = fileUpdateResponse.choices[0]?.message?.content;
                     if (newContent) {
-                        // Extract code if AI wraps it in markdown
-                        const codeBlockMatch = newContent.match(/```(?:\w*\n)?([\s\S]*?)```/);
+                        // Attempt to clean up if AI wraps in markdown unnecessarily
+                        const codeBlockMatch = newContent.match(/^```(?:\w*\n)?([\s\S]*?)\n?```$/);
                         const extractedContent = codeBlockMatch ? codeBlockMatch[1] : newContent;
 
                         return {
@@ -146,7 +161,7 @@ export class AIService {
                             }
                         };
                     } else {
-                        return { text: "AI could not generate an update for the file." };
+                        return { text: "Tessa could not generate an update for the file." };
                     }
                 } else {
                     return { text: "To use `/update_file`, please have a file open in the editor." };
@@ -157,9 +172,9 @@ export class AIService {
             const response = await openai.chat.completions.create({
                 model: modelId,
                 messages: messages,
-                max_tokens: 1024,
+                max_tokens: 1500, // Increased token limit
                 temperature: 0.7,
-                stream: false, // For simplicity, not streaming yet. Streaming would require more complex handling.
+                stream: false, 
             });
             const assistantResponse = response.choices[0]?.message?.content;
             if (assistantResponse) {
@@ -169,11 +184,11 @@ export class AIService {
             }
         } catch (error: any) {
             console.error("AI Chat Error:", error);
-            let errorMessage = `My AI Chat Error: ${error.message}`;
-            if (error.response && error.response.data && error.response.data.error) {
+            let errorMessage = `Tessa Agent Error: ${error.message}`;
+            if (error.response?.data?.error) {
                 errorMessage = `AI API Error: ${error.response.data.error.message}`;
-            } else if (error.message && error.message.includes('Incorrect API key')) {
-                errorMessage = 'My AI Chat: Incorrect API Key provided. Please check your settings.';
+            } else if (error.message?.includes('Incorrect API key')) {
+                errorMessage = 'Tessa Agent: Incorrect API Key provided. Please check your settings.';
             }
             return { error: errorMessage };
         }

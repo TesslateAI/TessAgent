@@ -8,26 +8,26 @@ export async function applyFileUpdateWithDiff(
 ) {
     try {
         const targetUri = vscode.Uri.file(filePath);
+        const relativePath = vscode.workspace.asRelativePath(targetUri);
         
         const choice = await vscode.window.showInformationMessage(
-            `AI suggests an update for ${vscode.workspace.asRelativePath(targetUri)}.`,
+            `Tessa Agent suggests an update for ${relativePath}.`,
             { modal: true },
             "Review and Apply", "Apply Directly", "Cancel"
         );
 
         if (choice === "Review and Apply") {
-            // Create temporary files for diff view
-            const tempOriginalUri = vscode.Uri.file(filePath + ".original_by_ai.tmp");
+            const tempOriginalUri = vscode.Uri.file(filePath + ".original_by_tessa.tmp"); // Unique temp file extension
             await vscode.workspace.fs.writeFile(tempOriginalUri, Buffer.from(originalContent, 'utf8'));
             
-            const tempNewUri = vscode.Uri.file(filePath + ".new_by_ai.tmp");
+            const tempNewUri = vscode.Uri.file(filePath + ".new_by_tessa.tmp");
             await vscode.workspace.fs.writeFile(tempNewUri, Buffer.from(newContent, 'utf8'));
 
-            await vscode.commands.executeCommand('vscode.diff', tempOriginalUri, tempNewUri, `Diff: ${vscode.workspace.asRelativePath(targetUri)} (Original vs AI Suggestion)`);
+            await vscode.commands.executeCommand('vscode.diff', tempOriginalUri, tempNewUri, `Diff: ${relativePath} (Original vs Tessa's Suggestion)`);
             
             const applyAfterReview = await vscode.window.showQuickPick(
                 [
-                    { label: "Apply Changes", description: `Update ${vscode.workspace.asRelativePath(targetUri)} with AI's version` },
+                    { label: "Apply Changes", description: `Update ${relativePath} with Tessa's version` },
                     { label: "Discard Changes", description: "Keep the original file content" }
                 ],
                 { placeHolder: "Apply changes shown in diff to the original file?" }
@@ -35,20 +35,21 @@ export async function applyFileUpdateWithDiff(
 
             if (applyAfterReview?.label === "Apply Changes") {
                 await vscode.workspace.fs.writeFile(targetUri, Buffer.from(newContent, 'utf8'));
-                vscode.window.showInformationMessage(`File ${vscode.workspace.asRelativePath(targetUri)} updated by AI.`);
+                vscode.window.showInformationMessage(`File ${relativePath} updated by Tessa Agent.`);
             } else {
-                vscode.window.showInformationMessage(`Changes for ${vscode.workspace.asRelativePath(targetUri)} discarded.`);
+                vscode.window.showInformationMessage(`Changes for ${relativePath} discarded.`);
             }
             
             // Clean up temp files
-            await vscode.workspace.fs.delete(tempOriginalUri, { useTrash: false });
-            await vscode.workspace.fs.delete(tempNewUri, { useTrash: false });
+            try { await vscode.workspace.fs.delete(tempOriginalUri, { useTrash: false }); } catch (e) { console.warn("Could not delete temp original:", e); }
+            try { await vscode.workspace.fs.delete(tempNewUri, { useTrash: false }); } catch (e) { console.warn("Could not delete temp new:", e); }
+
 
         } else if (choice === "Apply Directly") {
             await vscode.workspace.fs.writeFile(targetUri, Buffer.from(newContent, 'utf8'));
-            vscode.window.showInformationMessage(`File ${vscode.workspace.asRelativePath(targetUri)} updated by AI.`);
+            vscode.window.showInformationMessage(`File ${relativePath} updated by Tessa Agent.`);
         } else {
-             vscode.window.showInformationMessage(`Update for ${vscode.workspace.asRelativePath(targetUri)} cancelled.`);
+             vscode.window.showInformationMessage(`Update for ${relativePath} cancelled.`);
         }
 
     } catch (error: any) {

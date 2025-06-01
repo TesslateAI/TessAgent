@@ -2,7 +2,7 @@
 import * as vscode from 'vscode';
 import { ModelConfig } from './types';
 
-const EXTENSION_ID = 'myAiChat';
+const EXTENSION_ID = 'myAiChat'; // This is the key used in package.json configuration section
 
 export class SettingsManager {
     public static getGlobalApiKey(): string | undefined {
@@ -18,7 +18,8 @@ export class SettingsManager {
     }
 
     public static getDefaultCompletionModelId(): string {
-        return vscode.workspace.getConfiguration(EXTENSION_ID).get<string>('defaultCompletionModel') || 'gpt-3.5-turbo-instruct';
+        // Return empty string if not set, allowing completion to be disabled
+        return vscode.workspace.getConfiguration(EXTENSION_ID).get<string>('defaultCompletionModel') || ''; 
     }
     
     public static getDefaultFimModelId(): string {
@@ -37,7 +38,7 @@ export class SettingsManager {
     public static getApiKey(modelId?: string): string | undefined {
         if (modelId) {
             const modelConfig = this.getModelConfigById(modelId);
-            if (modelConfig?.apiKey) {
+            if (modelConfig?.apiKey && modelConfig.apiKey.trim() !== '') {
                 return modelConfig.apiKey;
             }
         }
@@ -47,7 +48,7 @@ export class SettingsManager {
     public static getApiUrl(modelId?: string): string {
         if (modelId) {
             const modelConfig = this.getModelConfigById(modelId);
-            if (modelConfig?.apiUrl) {
+            if (modelConfig?.apiUrl && modelConfig.apiUrl.trim() !== '') {
                 return modelConfig.apiUrl;
             }
         }
