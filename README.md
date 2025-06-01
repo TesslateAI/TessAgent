@@ -1,5 +1,8 @@
 # Tessa Agent - VS Code Extension
 
+![image](https://github.com/user-attachments/assets/da4665f3-af40-4d71-84c3-17a0773b5474)
+
+
 Tessa Agent is your intelligent AI coding assistant for Visual Studio Code, powered by OpenAI-compatible APIs.
 
 ## Features
